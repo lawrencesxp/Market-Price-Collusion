@@ -1,0 +1,1 @@
+profit = (price - cost) × demand

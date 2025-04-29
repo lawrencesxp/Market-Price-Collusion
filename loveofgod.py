@@ -11,16 +11,16 @@ import os
 # Set random seed for reproducibility
 np.random.seed(17)
 
-# Configuration
-num_days = 100
+# Setup
+num_days = 300
 num_airlines = 5
 airlines = [f"Airline_{i+1}" for i in range(num_airlines)]
-base_costs = np.ones(num_airlines) * 65  # $65 minimum to make profit
+base_costs = np.ones(num_airlines) * 75 
 alpha = 1.5  # Price sensitivity
 market_demand_per_day = 1000
-colors = ['red', 'blue', 'green', 'orange', 'purple']  # Brighter colors
+colors = ['red', 'blue', 'green', 'orange', 'purple']  
 
-# Minimum market share (7% guaranteed for each airline)
+# Minimum market share 
 min_market_share = 0.07
 
 # Q-Learning parameters
@@ -608,3 +608,6 @@ class AirlineSimulation:
 if __name__ == "__main__":
     app = AirlineSimulation()
     app.run()
+
+
+
