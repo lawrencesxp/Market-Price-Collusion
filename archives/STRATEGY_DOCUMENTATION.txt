@@ -1,0 +1,488 @@
+================================================================================
+LSXP MARKET PRICE COLLUSION - STRATEGY DOCUMENTATION
+================================================================================
+Last Updated: March 25, 2026
+Project: PhD Research on Tacit Price Collusion in Airline Oligopoly Markets
+
+This document describes the 10 pricing strategy simulations implemented in the LSXP
+project. Each strategy represents a different approach to pricing behavior by 5
+competing airlines in a Bayesian game-theoretic framework.
+
+KEY SIMULATION PARAMETERS (Standard):
+- Number of Airlines: 5
+- Simulation Duration: 50 days
+- Base Market Demand: 1000 customers/day
+- Base Costs: $75 per airline (except where noted)
+- Price Sensitivity (alpha): 1.5 (except where noted)
+- Price Range: $60-$180
+- Demand Model: Logit demand function based on relative prices
+
+OUTPUT FOR EACH STRATEGY:
+- Primary Export: 300 DPI PNG image (publication quality for presentations)
+- Data Export: final_state.csv containing Day 50 summary statistics
+- Visualization: 3-subplot layout showing Price, Market Share, Cumulative Profits
+
+================================================================================
+PART 1: Q-LEARNING STRATEGIES (Learning-Based Pricing Agents)
+================================================================================
+
+1. QLearning_CollusionBands.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Collusion Bands" - Agents are encouraged to stay within a band
+   CATEGORY: Reinforcement Learning with Explicit Collusion Incentives
+   
+   CORE RULES:
+   • Each airline is a Q-learning agent with independent Q-table
+   • State representation: 4 dimensions (price tier, profit tier, rank, relative price)
+   • Actions: 7 price adjustments [-10%, -5%, -2%, 0%, +2%, +5%, +10%]
+   
+   COLLUSION MECHANISM:
+   • Collusion Band Width: ±7.5% around average price
+   • If agent's price is within band: receives collusion bonus reward
+   • Bonus Formula: 8000 × band_factor × profit_factor × price_premium
+   
+   BONUS CALCULATION BREAKDOWN:
+   - band_factor: = (# other agents in band) / 4
+     * If >80% of competitors in band: band_factor multiplied by 1.5
+   - profit_factor: = min(average_profit / 10000, 1.0)
+   - price_premium: Increases above $100 threshold (up to 3x at high prices)
+   
+   INTENTION OF AUTHOR:
+   This is the main thesis demonstration. It shows that when agents are rewarded
+   for staying together, they naturally emerge tacit collusion WITHOUT explicit
+   communication. The collusion band creates an implicit price floor effect where
+   prices tend to cluster. This models how airlines might learn to coordinate on
+   elevated prices through repeated interaction.
+   
+   EXPECTED BEHAVIOR:
+   • Prices converge to a collusion band and stay relatively stable
+   • All airlines maintain similar price levels
+   • High cumulative profits compared to competitive scenarios
+   • Clear convergence by mid-simulation
+
+───────────────────────────────────────────────────────────────────────────────
+
+2. QLearning_StagedLearning.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Staged Learning" - Two-phase training (pre-training then competition)
+   CATEGORY: Reinforcement Learning with Training Phase
+   
+   STRUCTURE:
+   • Phase 1 - PRE-TRAINING (25 days):
+     Single airline (Airline_1) trains against static competitors
+     Static competitors follow fixed/gradual pricing strategies
+     Training airline learns Q-table through exploration (epsilon = 1.0 → 0.01)
+   
+   • Phase 2 - MULTI-AGENT (25 days):
+     All 5 airlines compete using their learned Q-tables
+     No more collusion bonus (pure competitive learning)
+   
+   LEARNING PARAMETERS:
+   • Learning Rate: 0.1
+   • Discount Factor: 0.9
+   • Exploration Decay: 0.99 per day
+   • Base Costs: $65 (lower than CollusionBands)
+   • Price Sensitivity (alpha): 1.0 (weaker than CollusionBands)
+   
+   INTENTION OF AUTHOR:
+   Compare how pre-training affects learned strategies. Show whether an airline
+   that trains first gains competitive advantage when facing new competitors.
+   Test if prior learning transfers to multi-agent setting.
+   
+   EXPECTED BEHAVIOR:
+   • Phase 1: Training airline explores gradually, converges to good strategy
+   • Phase 2: Multi-agent competition with no coordination (unlike CollusionBands)
+   • Prices likely aggressive due to no collusion incentive
+   • Profits more volatile due to learning dynamics
+
+───────────────────────────────────────────────────────────────────────────────
+
+3. QLearning_RandomWalk.py
+   ━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Random Walk" - Pre-training via random price movements
+   CATEGORY: Reinforcement Learning with Random Walk Pre-training
+   
+   STRUCTURE:
+   • Phase 1 - PRE-TRAINING (25 days):
+     All agents' prices follow random walk: price += N(0,1)
+     Prices bounded to [cost+0.01, 150]
+     No Q-learning updates (simple exploration)
+   
+   • Phase 2 - MULTI-AGENT (25 days):
+     Q-learning with epsilon-greedy exploration
+     All agents compete with learned Q-tables
+   
+   LEARNING PARAMETERS:
+   • Learning Rate: 0.1
+   • Discount Factor: 0.9
+   • Exploration Decay: 0.99 per day
+   • Base Costs: $65
+   • Price Sensitivity (alpha): 1.5
+   
+   KEY DIFFERENCE FROM StagedLearning:
+   Random walk pre-training vs. learning against static competitors.
+   This creates a baseline where all agents have equal pre-training exposure.
+   
+   INTENTION OF AUTHOR:
+   Ablation study comparing different pre-training approaches. Determine whether
+   competitive pre-training (StagedLearning) produces better learned strategies
+   than random walk pre-training. Answer: is experience against competitors
+   different from random exploration?
+   
+   EXPECTED BEHAVIOR:
+   • Less organized than StagedLearning (random walk doesn't teach strategy)
+   • Q-learning phase shows emergent competitive behavior
+   • No clear price patterns in Phase 1
+   • Variable profit levels
+
+================================================================================
+PART 2: RULE-BASED STRATEGIES (Non-Learning Heuristics)
+================================================================================
+
+4. RuleBased_AggressiveUndercutting.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Aggressive Undercutting" - Bottom performers cut prices hard
+   CATEGORY: Static Rule-Based Pricing
+   
+   CORE RULE:
+   IF airline is in bottom 2 (by profit):
+       new_price = average_price × 0.88 + N(0, 2)  [Undercut by 12%]
+   ELSE (top 3 performers):
+       new_price = current_price × 1.01 + N(0, 0.02)  [Maintain or slight raise]
+   
+   CONSTRAINT:
+   • Minimum price: base_cost + $0.01
+   • Maximum price: $180
+   
+   INTENTION OF AUTHOR:
+   Pure Bertrand competition model where unsuccessful competitors engage in
+   aggressive price wars. This creates a death spiral of undercutting. Show that
+   without coordination, market operates in destructive price competition.
+   
+   EXPECTED BEHAVIOR:
+   • Constant price wars (prices spiraling down)
+   • Winners maintain margins, losers cut deeply
+   • High volatility and churn in market shares
+   • Lowest profit levels across all strategies
+   • Prices converge toward marginal cost ($75)
+
+───────────────────────────────────────────────────────────────────────────────
+
+5. RuleBased_PriceMatching.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Price Matching" - Simple convergence to average price
+   CATEGORY: Static Rule-Based Pricing (Equilibrium Seeking)
+   
+   CORE RULE:
+   new_price = average_price + N(0, 1)
+   
+   CONSTRAINT:
+   • Minimum: $65 + 0.01
+   • Maximum: $150
+   • Added with small Gaussian noise each day
+   
+   OBSERVATION:
+   Despite the name "Equilibrium Detection," the code doesn't actually detect
+   equilibrium - it just copies the average price. All airlines perpetually
+   converge to the same level.
+   
+   INTENTION OF AUTHOR (Likely):
+   Baseline competitive scenario without price wars. Show that simple price
+   matching (copying rivals) leads to price convergence and stable equilibrium
+   at a moderate price level. This is the simplest form of tacit coordination -
+   implicit price following without collusion incentives.
+   
+   EXPECTED BEHAVIOR:
+   • Prices rapidly converge to single value
+   • All airlines cluster together within days
+   • Stable thereafter (just noise around average)
+   • Moderate profits (no extreme competition)
+   • Lowest variance in prices among all strategies
+
+───────────────────────────────────────────────────────────────────────────────
+
+6. RuleBased_StabilitySticking.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Stability Sticking" - Stick to prices once they stabilize
+   CATEGORY: Static Rule-Based Pricing with Inertia
+   
+   CORE LOGIC:
+   Maintains a 10-day history of own prices per airline.
+   
+   IF (max price change in last 10 days < $1):
+       # Prices are stable - stick with current
+       new_price = current_price + N(0, 0.5)  [Tiny random walk]
+   ELSE:
+       # Prices are volatile - gravitate toward average
+       new_price = 0.9 × current_price + 0.1 × average_price
+   
+   MINIMUM STABILITY WINDOW: Waits until 10 days of history available
+   
+   CONSTRAINT:
+   • Min: $65 + 0.01
+   • Max: $150
+   
+   KEY OBSERVATION:
+   Once any airline's prices stabilize, it becomes "sticky" and resists change.
+   This creates an implicit price floor effect - once an airline finds a price
+   point with limited changes, it stays there. This is like an administered
+   price equilibrium.
+   
+   INTENTION OF AUTHOR:
+   This may be the closest non-explicit-collusion mechanism to showing how
+   airlines maintain price discipline. It models behavioral inertia or bounded
+   rationality (don't change prices if they're not creating problems). Creates
+   implicit price stickiness that acts like a floor.
+   
+   EXPECTED BEHAVIOR:
+   • Initial phase: prices adjust toward average
+   • Once stable: prices become sticky/rigid
+   • Clear phase transition around day 15-20
+   • Stable high prices after stabilization period
+   • Resembles collusion WITHOUT collusion incentive
+   • This is the most "realistic" heuristic for airline pricing
+
+================================================================================
+PART 3: INTERACTIVE STRATEGIES (User-Controlled)
+================================================================================
+
+7. Interactive_ProfitTargeting.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Profit Targeting" - User/agent targets specific profit level
+   CATEGORY: Strategy Testing - User Controls One Airline (Airline_5)
+   
+   USER STRATEGY (Airline_5):
+   Target Profit = 95% × average_profit_of_competitors
+   
+   IF current_profit < (target_profit × 0.9):
+       # Significantly below target - grab market share
+       new_price = current_price × 0.97  [Cut 3%]
+   ELIF current_profit > (target_profit × 1.1):
+       # Significantly above target - maximize margins
+       new_price = current_price × 1.02  [Raise 2%]
+   ELSE:
+       # Within 10% of target - maintain
+       new_price = current_price + N(0, 0.5)
+   
+   AI COMPETITORS (Airlines 1-4):
+   Simple rank-based rules:
+   • Bottom 2: compete at 95% of average
+   • Top 2: maintain at 102% of average
+   
+   INTENTION OF AUTHOR:
+   Interactive mode for PhD presentation/demo. User can see how maintaining a
+   specific profit target affects competitive dynamics. Tests: "What happens if
+   one airline pursues profit stability while others react?"
+   
+   EXPECTED BEHAVIOR:
+   • User airline maintains relatively stable profit level
+   • Competitor reactions to user's moves visible
+   • Demonstrates strategic interaction
+   • Shows feasibility of target-based pricing
+
+───────────────────────────────────────────────────────────────────────────────
+
+8. Interactive_PriceLeadership.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Price Leadership" - User undercuts all competitors
+   CATEGORY: Strategy Testing - User Controls One Airline (Airline_5)
+   
+   USER STRATEGY (Airline_5):
+   Always be the cheapest:
+   new_price = min_competitor_price × 0.98  [Undercut by 2%]
+   
+   Constraints: [cost + 0.01, 180]
+   
+   AI COMPETITORS (Airlines 1-4):
+   React to undercutting:
+   IF user_price < average_price × 0.8:
+       # User is undercutting aggressively
+       competitors_raise_price: new_price = current × 1.01
+   ELSE:
+       # Normal conditions
+       competitors_match_average: new_price = average + N(0,1)
+   
+   INTENTION OF AUTHOR:
+   Interactive demo showing price leadership/low-cost competition. User sees
+   how aggressive undercutting affects competitor reactions and own profitability.
+   Tests: Can price leadership strategy sustain profitability?
+   
+   EXPECTED BEHAVIOR:
+   • User airline has high market share initially
+   • Competitor prices gradually increase as they abandon competition
+   • User profits rise as volume scales despite lower margins
+   • Classic price leadership equilibrium emerges
+   • User airline captures majority share by day 50
+
+================================================================================
+PART 4: SHOCK SCENARIOS (Testing Collusion Resilience)
+================================================================================
+
+9. TacitCollusion_CostShock.py
+   ━━━━━━━━━━━━━━━━━━━━━━━━━
+   NAME LOGIC: "Cost Shock" - External cost increase (oil crisis) on day 25
+   CATEGORY: Stress Test on QLearning_CollusionBands
+   
+   SHOCK MECHANISM:
+   On day 25 (exactly midway through 50-day simulation):
+   • All base_costs × 1.25  (25% price increase)
+   • Simulates sudden oil price spike, fuel surcharges, or inflation
+   
+   QUESTION BEING TESTED:
+   Does the collusion band hold during external shock? Do airlines maintain
+   coordinated pricing when their cost structures change dramatically?
+   
+   EXPECTED BEHAVIOR WITHOUT SHOCK:
+   (Days 1-24): Prices converge to collusion band, stable high profits
+   
+   EXPECTED BEHAVIOR WITH SHOCK:
+   (Days 25-50):
+   - Immediate price spike to maintain margins
+   - Potential BREAKDOWN of collusion if agents defect
+   - OR: Collusion band adjusts upward (resilient collusion)
+   - Profit volatility increases
+   - Market dynamics recalibrate
+   
+   RESEARCH IMPLICATION:
+   If collusion is resilient to cost shocks, concludes that tacit collusion is
+   ROBUST equilibrium. If collusion breaks down, that external shocks are a
+   vulnerability of coordinated pricing.
+   
+   OUTPUT CLARITY:
+   A vertical red dashed line at Day 25 marks the shock point clearly.
+
+───────────────────────────────────────────────────────────────────────────────
+
+10. TacitCollusion_DemandShock.py
+    ━━━━━━━━━━━━━━━━━━━━━━━━━
+    NAME LOGIC: "Demand Shock" - Demand collapse (pandemic) on day 25
+    CATEGORY: Stress Test on QLearning_CollusionBands
+    
+    SHOCK MECHANISM:
+    On day 25 (exactly midway through 50-day simulation):
+    • market_demand_per_day × 0.2  (80% demand drop)
+    • Simulates pandemic, recession, or sudden market contraction
+    • Airlines face 1/5 the customer volume they anticipated
+    
+    QUESTION BEING TESTED:
+    When the market shrinks dramatically, do airlines maintain high prices
+    (to preserve margins) or drop prices (to capture scarce volume)?
+    Does tacit collusion hold when absolute profits plummet?
+    
+    EXPECTED BEHAVIOR WITHOUT SHOCK (Days 1-24):
+    • Demand = 1000 customers/day
+    • Collusion band at high prices (~$120)
+    • 200 customers/day per airline average
+    • High cumulative profits
+    
+    EXPECTED BEHAVIOR WITH SHOCK (Days 25-50):
+    • Demand drops to 200 customers/day total
+    • Strategic choice: HIGH PRICE (margin maximization) vs. LOW PRICE (revenue maximization)
+    • Likely outcome: Airlines RAISE prices further (margin defense)
+    • OR: Price wars break out as airlines fight for thin volume
+    • Collusion band may shift but likely holds
+    • Cumulative profit growth nearly stops (volume × margin collapse)
+    
+    RESEARCH IMPLICATION:
+    If collusion persists through demand crash, shows tacit collusion is about
+    RELATIVE pricing, not absolute prices. Airlines coordinate to maintain
+    margins even when absolute profits collapse. This is stronger evidence of
+    true coordination (not just coincidental similarity).
+    
+    CRITICAL INSIGHT:
+    Demand shock tests whether collusion is demand-elastic or inelastic. Cost
+    shock tests external vulnerability. Demand shock tests whether agents value
+    relative position (versus each other) more than absolute profits.
+    
+    OUTPUT CLARITY:
+    A vertical red dashed line at Day 25 marks the shock point.
+
+================================================================================
+PART 5: SUMMARY TABLE - STRATEGY COMPARISON
+================================================================================
+
+Strategy                    | Type              | Key Parameter      | Expected Pattern
+───────────────────────────────────────────────────────────────────────────────
+1. CollusionBands           | Q-Learning        | Collusion bonus    | Converging cluster
+2. StagedLearning           | Q-Learning        | Pre-training phase | Competitive after training
+3. RandomWalk               | Q-Learning        | Random exploration | Chaotic then learning
+4. AggressiveUndercutting   | Rule-Based        | Rank-based cuts    | Price war spiral
+5. PriceMatching            | Rule-Based        | Average following  | Instant convergence
+6. StabilitySticking        | Rule-Based        | 10-day window      | Sticky equilibrium
+7. ProfitTargeting          | Interactive       | Target profit      | Stable profit level
+8. PriceLeadership          | Interactive       | Undercut minimum   | High market share
+9. CostShock                | Stress Test       | Day 25: +25% cost  | Collusion resilience test
+10. DemandShock             | Stress Test       | Day 25: -80% demand| Relative vs. absolute test
+
+================================================================================
+PART 6: INTERPRETATION GUIDE FOR PhD PRESENTATION
+================================================================================
+
+MAIN THESIS NARRATIVE:
+The CollusionBands and StabilitySticking strategies demonstrate two mechanisms
+of tacit collusion without explicit communication:
+
+1. MECHANISM A - EXPLICIT INCENTIVE (CollusionBands):
+   When agents are mathematically rewarded for staying close to peers, they
+   naturally learn to coordinate on elevated prices. The q-table converges to
+   strategies that maintain the collusion band. This models real-world scenarios
+   where reputation mechanisms, industry norms, or past interactions create
+   implicit pressure to maintain prices.
+
+2. MECHANISM B - BEHAVIORAL INERTIA (StabilitySticking):
+   Without explicit incentives, agents using simple heuristics naturally find
+   implicit price floors. Once prices stabilize (low variance), behavioral
+   inertia keeps them there. This models bounded rationality and organizational
+   inertia in real firms. It appears like collusion but emerges from simple
+   rules.
+
+COMPARISON IMPLICATIONS:
+- AggressiveUndercutting = Bertrand competition (worst for everyone)
+- PriceMatching = Weak coordination (moderate profits)
+- CollusionBands = Strong coordination (high profits - BUT requires incentive)
+- StabilitySticking = Collusion-like without incentive (realistic mechanism)
+
+SHOCK TESTS:
+- CostShock tests whether collusion is about profit maximization
+- DemandShock tests whether collusion is about relative positioning
+
+Hypothesis: Tacit collusion persists through both shocks because it's based on
+relative pricing (matching competitors) not absolute profit targets.
+
+================================================================================
+TECHNICAL NOTES FOR CODE REVIEW
+================================================================================
+
+DIRECTORY MAPPINGS:
+• exports/QLearning_CollusionBands/ → QLearning_CollusionBands_300dpi.png
+• exports/QLearning_StagedLearning/ → QLearning_StagedLearning_300dpi.png
+... etc for all 10 strategies
+
+PNG RESOLUTION:
+• All exports: 300 DPI (9.6" × 9.6" print quality at 100% scale)
+• Suitable for: conference presentations, journal papers, PhD defense slides
+• File size: ~800-1200 KB per image (manageable for PowerPoint/PDF)
+
+CSV OUTPUTS:
+Each strategy exports final_state.csv with columns:
+- Airline: Airline_1 through Airline_5
+- Final_Price: Price at Day 50
+- Final_Profit: Daily profit on Day 50
+- (Optional) Market_Share: Market share % at Day 50
+- (Optional) Cumulative_Profit: Total profit Days 1-50
+
+EXECUTION COMMANDS:
+From Market-Price-Collusion/ directory:
+  python QLearning_CollusionBands.py       # Generates CollusionBands
+  python RuleBased_StabilitySticking.py    # Generates StabilitySticking
+  ... etc
+
+================================================================================
+CHANGELOG
+================================================================================
+2026-03-25:
+- Removed all 150 DPI exports (reduced storage, cleaner output)
+- Renamed scripts from _export_* to descriptive strategy names
+- Consolidated documentation into this single file
+
+================================================================================
